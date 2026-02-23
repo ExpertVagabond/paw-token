@@ -52,7 +52,9 @@ Add to your Claude Code or Cursor MCP config:
 
 $PAW is available on [pump.fun](https://pump.fun) on Solana.
 
-**Mint address:** `[SET AFTER LAUNCH]`
+**Mint address:** `DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc`
+
+**pump.fun:** [https://pump.fun/coin/DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc](https://pump.fun/coin/DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc)
 
 ## Launch Your Own
 

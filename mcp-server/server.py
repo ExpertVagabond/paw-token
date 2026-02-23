@@ -20,7 +20,7 @@ from typing import Any
 
 # --- Configuration ---
 
-PAW_TOKEN_MINT = ""  # Set after pump.fun launch
+PAW_TOKEN_MINT = "DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc"
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 MIN_BALANCE = 1000  # Minimum $PAW tokens to access gated tools
 TOKEN_DECIMALS = 6  # Standard SPL token decimals

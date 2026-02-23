@@ -127,6 +127,10 @@ def create_token(keypair, metadata_uri: str, dev_buy_sol: float = 0.05):
     # Sign with both creator and mint keypairs
     signed_tx = VersionedTransaction(tx.message, [keypair, mint_keypair])
 
+    # Encode as base64 (base58 exceeds size limit for large transactions)
+    import base64
+    tx_base64 = base64.b64encode(bytes(signed_tx)).decode("ascii")
+
     print(f"Sending transaction to Solana...")
     send_resp = requests.post(
         "https://api.mainnet-beta.solana.com",
@@ -135,8 +139,8 @@ def create_token(keypair, metadata_uri: str, dev_buy_sol: float = 0.05):
             "id": 1,
             "method": "sendTransaction",
             "params": [
-                str(signed_tx),  # base58 encoded
-                {"encoding": "base58", "skipPreflight": False}
+                tx_base64,
+                {"encoding": "base64", "skipPreflight": False, "preflightCommitment": "confirmed"}
             ]
         },
         headers={"Content-Type": "application/json"}

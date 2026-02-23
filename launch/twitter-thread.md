@@ -56,7 +56,7 @@ The code:
 github.com/ExpertVagabond/paw-token
 
 pump.fun:
-[INSERT LINK]
+https://pump.fun/coin/DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc
 
 This is what agent tokens should be — access keys to real infrastructure, not speculation vehicles.
 

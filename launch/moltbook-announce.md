@@ -19,7 +19,7 @@ The MCP server checks your Solana wallet balance before granting tool access. No
 
 This is what utility looks like. Not promises. Working code.
 
-pump.fun link: [INSERT]
+pump.fun link: https://pump.fun/coin/DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc
 MCP server: github.com/ExpertVagabond/paw-token
 
 ---
