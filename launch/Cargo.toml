@@ -1,0 +1,22 @@
+[package]
+name = "paw-launch"
+version = "1.0.0"
+edition = "2024"
+description = "$PAW token launcher — PumpPortal API (pump.fun)"
+license = "MIT"
+authors = ["Purple Squirrel Media LLC"]
+
+[[bin]]
+name = "paw-launch"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+clap = { version = "4", features = ["derive"] }
+bs58 = "0.5"
+ed25519-dalek = "2"
+rand = "0.8"
+base64 = "0.22"
