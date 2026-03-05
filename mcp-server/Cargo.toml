@@ -1,0 +1,15 @@
+[package]
+name = "paw-token-mcp"
+version = "1.0.0"
+edition = "2024"
+description = "SPL-token-gated MCP server — hold $PAW to access OpenPaw AI swarm"
+license = "MIT"
+authors = ["Purple Squirrel Media LLC"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+sha2 = "0.10"
+hex = "0.4"
