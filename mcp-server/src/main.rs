@@ -1,8 +1,91 @@
+// ─── Security & Validation (paw-token-mcp) ───────────────────────────
+// All input validation, sanitization, and security constants are defined
+// at the top of the entry file before any tool or handler logic.
+
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Sha256, Digest};
 use std::io::BufRead;
+use std::time::{Instant, Duration};
+use std::collections::VecDeque;
 
+// ─── Security Constants ──────────────────────────────────────────────
+const MAX_WALLET_LENGTH: usize = 64;
+const MAX_CONTENT_LENGTH: usize = 10_000;
+const MAX_QUERY_LENGTH: usize = 2048;
+const MAX_TASK_LENGTH: usize = 5000;
+const MAX_TAG_LENGTH: usize = 128;
+const MAX_TAGS: usize = 20;
+const MAX_INPUT_LINE: usize = 65_536;
+const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+const MAX_REQUESTS_PER_WINDOW: usize = 60;
+const SOLANA_ADDR_RE_CHARS: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/// Validate a Solana wallet address (base58, 32-44 chars).
+fn validate_wallet(addr: &str) -> Result<(), String> {
+    if addr.is_empty() {
+        return Err("wallet_address is required".into());
+    }
+    if addr.len() > MAX_WALLET_LENGTH || addr.len() < 32 {
+        return Err(format!("wallet_address must be 32-{MAX_WALLET_LENGTH} characters"));
+    }
+    if !addr.chars().all(|c| SOLANA_ADDR_RE_CHARS.contains(c)) {
+        return Err("wallet_address contains invalid characters — expected base58".into());
+    }
+    Ok(())
+}
+
+/// Validate and truncate a generic string input.
+fn validate_string(value: &str, label: &str, max_len: usize) -> Result<String, String> {
+    if value.is_empty() {
+        return Err(format!("{label} must not be empty"));
+    }
+    if value.len() > max_len {
+        return Err(format!("{label} exceeds max length of {max_len}"));
+    }
+    if value.contains('\0') {
+        return Err(format!("{label} contains null bytes"));
+    }
+    Ok(value.to_string())
+}
+
+/// Validate tags array.
+fn validate_tags(tags: &[Value]) -> Result<Vec<String>, String> {
+    if tags.len() > MAX_TAGS {
+        return Err(format!("Maximum {MAX_TAGS} tags allowed"));
+    }
+    tags.iter().enumerate().map(|(i, v)| {
+        let s = v.as_str().ok_or(format!("tags[{i}] must be a string"))?;
+        validate_string(s, &format!("tags[{i}]"), MAX_TAG_LENGTH)
+    }).collect()
+}
+
+/// Simple sliding-window rate limiter.
+struct RateLimiter {
+    timestamps: VecDeque<Instant>,
+}
+
+impl RateLimiter {
+    fn new() -> Self { Self { timestamps: VecDeque::new() } }
+    fn check(&mut self) -> Result<(), String> {
+        let now = Instant::now();
+        while self.timestamps.front().map_or(false, |t| now.duration_since(*t) > RATE_LIMIT_WINDOW) {
+            self.timestamps.pop_front();
+        }
+        if self.timestamps.len() >= MAX_REQUESTS_PER_WINDOW {
+            return Err("Rate limit exceeded — try again later".into());
+        }
+        self.timestamps.push_back(now);
+        Ok(())
+    }
+}
+
+/// Sanitize an error message for external display.
+fn sanitize_error(msg: &str) -> String {
+    msg.lines().next().unwrap_or("Internal error").chars().take(500).collect()
+}
+
+// ─── Protocol & Token Constants ──────────────────────────────────────
 #[derive(Deserialize)]
 struct JsonRpcRequest { #[allow(dead_code)] jsonrpc: String, id: Option<Value>, method: String, params: Option<Value> }
 
