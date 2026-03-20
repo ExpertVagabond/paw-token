@@ -12,6 +12,8 @@ Uses Solana RPC to verify token balance before granting tool access.
 """
 
 import json
+import os
+import re
 import sys
 import struct
 import urllib.request
@@ -20,10 +22,37 @@ from typing import Any
 
 # --- Configuration ---
 
-PAW_TOKEN_MINT = "DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc"
-SOLANA_RPC = "https://api.mainnet-beta.solana.com"
-MIN_BALANCE = 1000  # Minimum $PAW tokens to access gated tools
+PAW_TOKEN_MINT = os.environ.get("PAW_TOKEN_MINT", "DbukKVm7tdNaeaqjm8VD14TH4XMFEZ4xnjbXJ4SyEeLc")
+SOLANA_RPC = os.environ.get("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
+MIN_BALANCE = int(os.environ.get("PAW_MIN_BALANCE", "1000"))
 TOKEN_DECIMALS = 6  # Standard SPL token decimals
+
+# --- Input validation ---
+
+_SOLANA_ADDR_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+MAX_QUERY_LENGTH = 2000
+MAX_CONTENT_LENGTH = 10000
+MAX_TASK_LENGTH = 5000
+MAX_N_RESULTS = 20
+
+
+def validate_wallet_address(addr: str) -> str:
+    """Validate and return a Solana wallet address."""
+    if not addr or not isinstance(addr, str):
+        raise ValueError("wallet_address is required")
+    addr = addr.strip()
+    if not _SOLANA_ADDR_RE.match(addr):
+        raise ValueError("Invalid Solana wallet address format")
+    return addr
+
+
+def validate_string(value: str, name: str, max_len: int) -> str:
+    """Validate a string input is non-empty and within length limits."""
+    if not value or not isinstance(value, str):
+        raise ValueError(f"{name} is required and must be a non-empty string")
+    if len(value) > max_len:
+        raise ValueError(f"{name} exceeds maximum length of {max_len}")
+    return value
 
 # SPL Token Program ID
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -53,6 +82,11 @@ def rpc_call(method: str, params: list) -> dict:
 def get_token_balance(wallet_address: str) -> float:
     """Check $PAW token balance for a wallet address."""
     if not PAW_TOKEN_MINT:
+        return 0.0
+
+    try:
+        wallet_address = validate_wallet_address(wallet_address)
+    except ValueError:
         return 0.0
 
     # Get token accounts by owner filtered by mint
@@ -195,7 +229,7 @@ def handle_tool_call(name: str, arguments: dict) -> dict:
     """Handle an MCP tool call."""
 
     if name == "paw_check_access":
-        wallet = arguments["wallet_address"]
+        wallet = validate_wallet_address(arguments.get("wallet_address", ""))
         allowed, balance = verify_access(wallet)
         return {
             "content": [{
@@ -214,9 +248,10 @@ def handle_tool_call(name: str, arguments: dict) -> dict:
         }
 
     # All other tools require token verification
-    wallet = arguments.get("wallet_address", "")
-    if not wallet:
-        return {"content": [{"type": "text", "text": "Error: wallet_address required"}], "isError": True}
+    try:
+        wallet = validate_wallet_address(arguments.get("wallet_address", ""))
+    except ValueError as e:
+        return {"content": [{"type": "text", "text": f"Error: {e}"}], "isError": True}
 
     allowed, balance = verify_access(wallet)
     if not allowed:
@@ -236,8 +271,8 @@ def handle_tool_call(name: str, arguments: dict) -> dict:
         }
 
     if name == "paw_swarm_search":
-        query = arguments.get("query", "")
-        n_results = min(arguments.get("n_results", 5), 20)
+        query = validate_string(arguments.get("query", ""), "query", MAX_QUERY_LENGTH)
+        n_results = max(1, min(int(arguments.get("n_results", 5)), MAX_N_RESULTS))
         # ChromaDB integration point
         results = _search_chromadb(query, n_results)
         return {"content": [{"type": "text", "text": json.dumps(results, indent=2)}]}
@@ -247,14 +282,19 @@ def handle_tool_call(name: str, arguments: dict) -> dict:
         return {"content": [{"type": "text", "text": json.dumps(status, indent=2)}]}
 
     elif name == "paw_memory_share":
-        content = arguments.get("content", "")
+        content = validate_string(arguments.get("content", ""), "content", MAX_CONTENT_LENGTH)
         tags = arguments.get("tags", [])
+        if not isinstance(tags, list) or len(tags) > 20:
+            tags = []
+        tags = [str(t)[:100] for t in tags[:20]]
         result = _share_memory(wallet, content, tags)
         return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
 
     elif name == "paw_queue_task":
-        task = arguments.get("task", "")
+        task = validate_string(arguments.get("task", ""), "task", MAX_TASK_LENGTH)
         priority = arguments.get("priority", "normal")
+        if priority not in ("low", "normal", "high"):
+            priority = "normal"
         required = MIN_BALANCE * PRIORITY_MULTIPLIERS.get(priority, 1.0)
         if balance < required:
             return {
@@ -394,7 +434,14 @@ def main():
         elif method == "tools/call":
             tool_name = params.get("name", "")
             arguments = params.get("arguments", {})
-            result = handle_tool_call(tool_name, arguments)
+            if not isinstance(arguments, dict):
+                arguments = {}
+            try:
+                result = handle_tool_call(tool_name, arguments)
+            except (ValueError, TypeError, KeyError) as e:
+                result = {"content": [{"type": "text", "text": f"Validation error: {e}"}], "isError": True}
+            except Exception as e:
+                result = {"content": [{"type": "text", "text": f"Internal error: {type(e).__name__}"}], "isError": True}
             send_response(id, result)
 
         elif method == "ping":
